@@ -3,7 +3,7 @@ A mostly compatible .NET implementation of @hapijs/iron encapsulated tokens (enc
 
 # Differences
 
-* You must serialize/deserialize your data yourself (@hapijs/iron  this for you).
+* You must serialize/deserialize your data yourself (@hapijs/iron does this for you).
 * If you want to ensure that your tokens can be properly handled in node by @hapijs/iron, just make sure anything you seal can be cleanly parsed by `JSON.parse`.
 * Passwords must be provided as a simple strings (`password.Secret`, `password.Specific`, and `password.Hash` objects are not supported)
 * Encryption\decryption uses `aes-256-cbc` and Hmac uses `sha256` exclusively, exactly as configured in @hapijs/iron default settings. 
