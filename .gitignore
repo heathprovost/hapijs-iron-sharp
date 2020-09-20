@@ -1,0 +1,9 @@
+**/bin/*
+**/obj/*
+**_Resharper.**
+_ReSharper*/**
+**.user
+**/.vs/*
+*.coverage
+**/node_modules/*
+.env
