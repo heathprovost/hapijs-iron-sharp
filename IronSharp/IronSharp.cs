@@ -205,6 +205,10 @@ namespace IronSharp
         public static string Unseal(string data, string password, Options options)
         {
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + options.LocaltimeOffset;
+            if (!data.StartsWith(MAC_PREFIX))
+            {
+                throw new Exception("Wrong mac prefix");
+            }
             var parts = data.Split('*');
             if (parts.Length != MAC_PARTS_COUNT) {
                 throw new Exception("Incorrect number of sealed components");
@@ -218,9 +222,6 @@ namespace IronSharp
             var hmacSalt = parts[6];
             var hmac = parts[7];
             var macBaseString  = macPrefix + '*' + passwordId + '*' + cipherSalt + '*' + cipherIv + '*' + encryptedB64 + '*' + expiration;
-            if (macPrefix != MAC_PREFIX) {
-                throw new Exception("Wrong mac prefix");
-            }
             if (!string.IsNullOrEmpty(expiration))
             {
                 if (long.TryParse(expiration, out long exp))
