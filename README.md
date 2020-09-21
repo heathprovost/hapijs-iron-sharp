@@ -11,10 +11,18 @@ A mostly compatible .NET implementation of @hapijs/iron encapsulated tokens (enc
 
 ## Examples
 
-### Iron.Seal
+### Basics
 
 ```C#
+var plaintext = "{\"foo\":\"bar\"}"; //anything serialized into JSON
+
+// simple example using string password and default settings
+
 var token = Iron.Seal(plaintext, password, Iron.DEFAULTS);
+var unsealed = Iron.Unseal(token, passwords, Iron.DEFAULTS);
+Console.Writeline(unsealed);
+
+//Prints {"foo":"bar"}
 ```
 
 ### Iron.Unseal
