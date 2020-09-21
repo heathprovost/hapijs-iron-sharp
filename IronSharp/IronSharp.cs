@@ -2,32 +2,60 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace IronSharp
 {
-    public static class IronSharp
-    {
-        public readonly struct Options
-        {
-            public int Ttl { get; }
-            public int TimestampSkew { get; }
-            public int LocaltimeOffset { get; }
-            public Options(int ttl, int timestampSkew = (60 * 1000), int localtimeOffset = 0)
-            {
-                Ttl = ttl;
-                TimestampSkew = timestampSkew;
-                LocaltimeOffset = localtimeOffset;
-            }
-        }
 
-        public static readonly Options DEFAULTS = new Options(ttl: 0);
+    public readonly struct IronPassword    {
+        private const int MIN_PASSWORD_LEN = 32;
+        public string Id { get; }
+        public string Encryption { get; }
+        public string Integrity { get; }
+        public IronPassword(string password) : this(null, password, password) { }
+        public IronPassword(string id, string password) : this(id, password, password) { }
+        public IronPassword(string id, string encryptionPassword, string integrityPassword)
+        {
+            if (string.IsNullOrEmpty(encryptionPassword) || string.IsNullOrEmpty(integrityPassword))
+            {
+                throw new Exception("Empty password");
+            }
+            if (encryptionPassword.Length < MIN_PASSWORD_LEN || integrityPassword.Length < MIN_PASSWORD_LEN)
+            {
+                throw new Exception("Password string too short (min " + MIN_PASSWORD_LEN + " characters required)");
+            }
+            if (id != null && !Regex.IsMatch(id, @"^[a-zA-Z0-9_]+$"))
+            {
+                throw new Exception("Invalid password id");
+            }
+            Id = id;
+            Encryption = encryptionPassword;
+            Integrity = integrityPassword;
+        }
+    }
+
+    public readonly struct IronOptions
+    {
+        public int Ttl { get; }
+        public int TimestampSkew { get; }
+        public int LocaltimeOffset { get; }
+        public IronOptions(int ttl, int timestampSkew = (60 * 1000), int localtimeOffset = 0)
+        {
+            Ttl = ttl;
+            TimestampSkew = timestampSkew;
+            LocaltimeOffset = localtimeOffset;
+        }
+    }
+
+    public static class Iron
+    {
+        public static readonly IronOptions DEFAULTS = new IronOptions(ttl: 0);
 
         private const string MAC_FORMAT_VERSION = "2";
         private const string MAC_PREFIX = "Fe26." + MAC_FORMAT_VERSION;
         private const int MAC_PARTS_COUNT = 8;
 
         private const int ITERATIONS = 1;
-        private const int MIN_PASSWORD_LEN = 32;
         private const int SALT_BITS = 256;
         private const int KEY_BITS = 256;
         private const int IV_BITS = 128;
@@ -39,23 +67,16 @@ namespace IronSharp
             public string CipherSalt { get; }
             public byte[] HmacKey { get; }
             public string HmacSalt { get; }
-            public Derivables(string password, byte[] cipherKey = null, byte[] cipherIv = null, string cipherSalt = null, byte[] hmacKey = null, string hmacSalt = null)
+
+            public Derivables(IronPassword password, byte[] cipherKey = null, byte[] cipherIv = null, string cipherSalt = null, byte[] hmacKey = null, string hmacSalt = null)
             {
-                if (string.IsNullOrEmpty(password))
-                {
-                    throw new Exception("Empty password");
-                }
-                if (password.Length < MIN_PASSWORD_LEN)
-                {
-                    throw new Exception("Password string too short (min " + MIN_PASSWORD_LEN + " characters required)");
-                }
                 CipherSalt = cipherSalt ?? BytesToHex(RandomBits(SALT_BITS));
-                CipherKey = cipherKey ?? PBKDF2(password, CipherSalt, ITERATIONS);
+                CipherKey = cipherKey ?? PBKDF2(password.Encryption, CipherSalt, ITERATIONS);
                 CipherIv = cipherIv ?? RandomBits(IV_BITS);
                 HmacSalt = hmacSalt ?? BytesToHex(RandomBits(SALT_BITS));
-                HmacKey = hmacKey ?? PBKDF2(password, HmacSalt, ITERATIONS);
+                HmacKey = hmacKey ?? PBKDF2(password.Integrity, HmacSalt, ITERATIONS);
 
-                string BytesToHex(byte[] bytes, bool toLowerCase = true)
+                string BytesToHex(byte[] bytes)
                 {
                     if (bytes == null) return null;
                     byte addByte = 0x57;
@@ -190,21 +211,44 @@ namespace IronSharp
             return diff == 0;
         }
 
-        public static string Seal(string data, string password, Options options)
+        public static string Seal(string data, string password, IronOptions options)
+        {
+            var ironPassword = new IronPassword(password);
+            return Seal(data, ironPassword, options);
+        }
+
+        public static string Seal(string data, IronPassword password, IronOptions options)
         {
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + options.LocaltimeOffset;
             var derived = new Derivables(password);
-            var encrypted = Encrypt(password, data, derived);
+            var encrypted = Encrypt(password.Encryption, data, derived);
             var expiration = (options.Ttl > 0) ? (now + options.Ttl) + "" : "";
-            var macBaseString = MAC_PREFIX + "**" + derived.CipherSalt + "*" + Base64urlEncode(derived.CipherIv) + "*" + encrypted + "*" + expiration;
+            var macBaseString = MAC_PREFIX + "*" + password.Id + "*" + derived.CipherSalt + "*" + Base64urlEncode(derived.CipherIv) + "*" + encrypted + "*" + expiration;
             var mac = Hmac(macBaseString, derived);
             var ironed = macBaseString + "*" + derived.HmacSalt + "*" + mac;
             return ironed;
         }
 
-        public static string Unseal(string data, string password, Options options)
+        public static string Unseal(string data, string password, IronOptions options)
+        {
+            var ironPassword = new IronPassword(password);
+            var ironPasswords = new IronPassword[] { ironPassword };
+            return Unseal(data, ironPasswords, options);
+        }
+
+        public static string Unseal(string data, IronPassword password, IronOptions options)
+        {
+            var ironPasswords = new IronPassword[] { password };
+            return Unseal(data, ironPasswords, options);
+        }
+
+        public static string Unseal(string data, IronPassword[] passwords, IronOptions options)
         {
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + options.LocaltimeOffset;
+            if (passwords.Length == 0)
+            {
+                throw new Exception("No passwords provided");
+            }
             if (!data.StartsWith(MAC_PREFIX))
             {
                 throw new Exception("Wrong mac prefix");
@@ -236,9 +280,22 @@ namespace IronSharp
                     throw new Exception("Invalid expiration");
                 }
             }
-            if (string.IsNullOrEmpty(password))
+            IronPassword password;
+            if (!string.IsNullOrEmpty(passwordId))
             {
-                throw new Exception("Empty password");
+                var idx = Array.FindIndex(passwords, x => x.Id == passwordId);
+                if (idx >= 0)
+                {
+                    password = passwords[idx];
+                }
+                else
+                {
+                    throw new Exception("Cannot find password: " + passwordId);
+                }
+            }
+            else
+            {
+                password = passwords[0];
             }
             var derived = new Derivables(password, cipherSalt: cipherSalt, cipherIv: Base64UrlDecode(cipherIv), hmacSalt: hmacSalt);
             var digest = Hmac(macBaseString, derived);
@@ -247,7 +304,7 @@ namespace IronSharp
                 throw new Exception("Bad hmac value");
             }
             var encrypted = Base64UrlDecode(encryptedB64);
-            var decrypted = Decrypt(password, encrypted, derived);
+            var decrypted = Decrypt(password.Encryption, encrypted, derived);
             return decrypted;
         }
 
