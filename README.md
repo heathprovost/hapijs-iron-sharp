@@ -15,7 +15,7 @@ A mostly compatible .NET implementation of @hapijs/iron encapsulated tokens (enc
 
 ```C#
 var plaintext = "{\"foo\":\"bar\"}"; //anything serialized into JSON
-var password = "my-really-secure-password-string"
+var password = "my-really-secure-password-string";
 
 var token = Iron.Seal(plaintext, password, Iron.DEFAULTS);
 var unsealed = Iron.Unseal(token, password, Iron.DEFAULTS);
@@ -28,7 +28,7 @@ Console.WriteLine(unsealed);
 ```C#
 var plaintext = "{\"foo\":\"bar\"}"; //anything serialized into JSON
 var options = new IronOptions(ttl: (60 * 1000)); //1 minute in milliseconds
-var password = "my-really-secure-password-string"
+var password = "my-really-secure-password-string";
 
 var token = Iron.Seal(plaintext, password, options);
 
