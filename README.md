@@ -15,18 +15,45 @@ A mostly compatible .NET implementation of @hapijs/iron encapsulated tokens (enc
 
 ```C#
 var plaintext = "{\"foo\":\"bar\"}"; //anything serialized into JSON
-
-// simple example using string password and default settings
+var password = "my-really-secure-password-string"
 
 var token = Iron.Seal(plaintext, password, Iron.DEFAULTS);
-var unsealed = Iron.Unseal(token, passwords, Iron.DEFAULTS);
-Console.Writeline(unsealed);
+var unsealed = Iron.Unseal(token, password, Iron.DEFAULTS);
 
+Console.WriteLine(unsealed);
 //Prints {"foo":"bar"}
 ```
-
-### Iron.Unseal
+### Set TTL
 
 ```C#
+var plaintext = "{\"foo\":\"bar\"}"; //anything serialized into JSON
+var options = new IronOptions(ttl: (60 * 1000)); //1 minute in milliseconds
+var password = "my-really-secure-password-string"
+
+var token = Iron.Seal(plaintext, password, options);
+
+//...wait until TTL expires
+
+var unsealed = Iron.Unseal(token, password, options);
+
+//Throws "Expired seal" exception
+```
+
+### Password Rotation
+
+```C#
+var plaintext = "{\"foo\":\"bar\"}"; //anything serialized into JSON
+var password1 = new IronPassword(id: "foo", password: "my-really-secure-password-string");
+var password2 = new IronPassword(id: "bar", password: "my-other-really-secure-password-string");
+var token = Iron.Seal(plaintext, password1, Iron.DEFAULTS);
+
+var unsealed = Iron.Unseal(token, password2, Iron.DEFAULTS); //Throws "Cannot find password foo" exception
+
+//create array with both passwords in it and try again
+
+var passwords = new IronPassword[] {password1, password2};
 var unsealed = Iron.Unseal(token, passwords, Iron.DEFAULTS);
+Console.WriteLine(unsealed);
+//Prints {"foo":"bar"}
+
 ```
