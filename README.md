@@ -1,5 +1,5 @@
 # hapijs-iron-sharp
-A mostly compatible .NET implementation of @hapijs/iron encapsulated tokens (encrypted and mac'ed objects)
+A mostly compatible .NET implementation of [@hapijs/iron](https://github.com/hapijs/iron) encapsulated tokens (encrypted and mac'ed objects)
 
 ## Differences
 
